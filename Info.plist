@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.pixelx.cuecompanion</string>
+
+    <key>CFBundleName</key>
+    <string>CueCompanion</string>
+
+    <key>CFBundleDisplayName</key>
+    <string>Cue Companion</string>
+
+    <key>CFBundleExecutable</key>
+    <string>CueCompanion</string>
+
+    <key>CFBundleVersion</key>
+    <string>1.0.0</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+
+    <!-- Hide from Dock (menu bar only) -->
+    <key>LSUIElement</key>
+    <true/>
+
+    <!-- URL Scheme Registration -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>com.pixelx.cuecompanion</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>cuecompanion</string>
+            </array>
+        </dict>
+    </array>
+
+    <!-- Required for audio capture -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>CueCompanion needs microphone access to capture audio for transcription.</string>
+
+    <!-- Required for screen capture (system audio) -->
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>CueCompanion needs screen recording permission to capture system audio.</string>
+</dict>
+</plist>
