@@ -16,7 +16,8 @@ protocol AudioCaptureProvider {
 
     /// Start capturing audio
     /// - Parameter onAudioData: Callback that receives PCM16 audio data
-    func startCapture(onAudioData: @escaping (Data) -> Void) async throws
+    /// - Parameter onCaptureStopped: Optional callback when capture is stopped externally (by system)
+    func startCapture(onAudioData: @escaping (Data) -> Void, onCaptureStopped: (() -> Void)?) async throws
 
     /// Stop capturing audio
     func stopCapture() async

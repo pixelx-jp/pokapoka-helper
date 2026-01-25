@@ -25,12 +25,16 @@ func logToFile(_ message: String) {
 /// Callback for audio data
 typealias AudioDataCallback = (Data) -> Void
 
+/// Callback for capture stopped event
+typealias CaptureStoppedCallback = () -> Void
+
 /// Captures system audio using ScreenCaptureKit
 /// Requires Screen Recording permission
 class AudioCapture: NSObject, AudioCaptureProvider {
     private var stream: SCStream?
     private var _isCapturing = false
     private var onAudioData: AudioDataCallback?
+    private var onCaptureStopped: CaptureStoppedCallback?
 
     let sampleRate: Double = 24000  // OpenAI Realtime API expects 24kHz
     let channelCount: Int = 1       // Mono
@@ -39,8 +43,9 @@ class AudioCapture: NSObject, AudioCaptureProvider {
     var isCapturing: Bool { _isCapturing }
 
     /// Start capturing system audio
-    func startCapture(onAudioData: @escaping AudioDataCallback) async throws {
+    func startCapture(onAudioData: @escaping AudioDataCallback, onCaptureStopped: CaptureStoppedCallback? = nil) async throws {
         self.onAudioData = onAudioData
+        self.onCaptureStopped = onCaptureStopped
         logToFile("Starting audio capture...")
 
         // Get available content to capture
@@ -69,8 +74,8 @@ class AudioCapture: NSObject, AudioCaptureProvider {
         config.height = 2
         config.minimumFrameInterval = CMTime(value: 1, timescale: 1)  // 1 FPS minimum
 
-        // Create and start the stream
-        stream = SCStream(filter: filter, configuration: config, delegate: nil)
+        // Create and start the stream (with delegate to detect when system stops capture)
+        stream = SCStream(filter: filter, configuration: config, delegate: self)
 
         try stream?.addStreamOutput(self, type: .audio, sampleHandlerQueue: .global(qos: .userInteractive))
 
@@ -94,6 +99,25 @@ class AudioCapture: NSObject, AudioCaptureProvider {
 
         self.stream = nil
         _isCapturing = false
+    }
+
+    /// Called when capture is stopped externally (by system or error)
+    fileprivate func handleCaptureStopped() {
+        guard _isCapturing else { return }
+        _isCapturing = false
+        stream = nil
+        logToFile("Capture stopped externally")
+        print("ScreenCaptureKit capture stopped externally")
+        onCaptureStopped?()
+    }
+}
+
+// MARK: - SCStreamDelegate
+extension AudioCapture: SCStreamDelegate {
+    func stream(_ stream: SCStream, didStopWithError error: Error) {
+        logToFile("SCStream stopped with error: \(error)")
+        print("SCStream stopped with error: \(error)")
+        handleCaptureStopped()
     }
 }
 

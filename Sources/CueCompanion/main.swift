@@ -143,10 +143,18 @@ class CueCompanionApp: NSObject, NSApplicationDelegate {
 
     private func startCapture() async {
         do {
-            try await audioCaptureManager.startCapture { [weak self] audioData in
-                // Send audio data to all connected WebSocket clients
-                self?.webSocketServer.broadcast(audioData: audioData)
-            }
+            try await audioCaptureManager.startCapture(
+                onAudioData: { [weak self] audioData in
+                    // Send audio data to all connected WebSocket clients
+                    self?.webSocketServer.broadcast(audioData: audioData)
+                },
+                onCaptureStopped: { [weak self] in
+                    // Handle capture stopped externally (by system)
+                    Task { @MainActor in
+                        self?.handleCaptureStoppedExternally()
+                    }
+                }
+            )
             isCapturing = true
             await webSocketServer.setCapturing(true)
             updateToggleMenu(capturing: true)
@@ -154,6 +162,19 @@ class CueCompanionApp: NSObject, NSApplicationDelegate {
             print("Failed to start capture: \(error)")
             updateMenuStatus("Error: \(error.localizedDescription)")
         }
+    }
+
+    /// Handle when capture is stopped externally (by system, e.g., permission revoked)
+    @MainActor
+    private func handleCaptureStoppedExternally() {
+        guard isCapturing else { return }
+        isCapturing = false
+        Task {
+            await webSocketServer.setCapturing(false)
+        }
+        updateToggleMenu(capturing: false)
+        updateMenuStatus("Stopped (by system)")
+        print("Capture stopped externally by system")
     }
 
     private func stopCapture() async {
