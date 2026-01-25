@@ -7,9 +7,20 @@ actor AudioWebSocketServer {
     private let port: UInt16
     private var listener: NWListener?
     private var connections: [NWConnection] = []
+    private var _isCapturing = false
 
     init(port: Int) {
         self.port = UInt16(port)
+    }
+
+    /// Update capture status (called from main app)
+    func setCapturing(_ capturing: Bool) {
+        _isCapturing = capturing
+    }
+
+    /// Get current capture status
+    var isCapturing: Bool {
+        _isCapturing
     }
 
     /// Start the WebSocket server
@@ -154,6 +165,13 @@ actor AudioWebSocketServer {
         switch trimmed.lowercased() {
         case "ping":
             sendText("pong", to: connection)
+        case "status", "capture_status":
+            // Return capture status
+            let response: [String: Any] = [
+                "type": "capture_status",
+                "capturing": _isCapturing
+            ]
+            await sendJSON(response, to: connection)
         case "model_status":
             // Local transcription is disabled
             let response: [String: Any] = [

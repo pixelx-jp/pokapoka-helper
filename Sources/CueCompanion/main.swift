@@ -148,6 +148,7 @@ class CueCompanionApp: NSObject, NSApplicationDelegate {
                 self?.webSocketServer.broadcast(audioData: audioData)
             }
             isCapturing = true
+            await webSocketServer.setCapturing(true)
             updateToggleMenu(capturing: true)
         } catch {
             print("Failed to start capture: \(error)")
@@ -158,6 +159,7 @@ class CueCompanionApp: NSObject, NSApplicationDelegate {
     private func stopCapture() async {
         await audioCaptureManager.stopCapture()
         isCapturing = false
+        await webSocketServer.setCapturing(false)
         updateToggleMenu(capturing: false)
     }
 
