@@ -1,16 +1,15 @@
 import Foundation
 import Network
 
-/// WebSocket server for streaming audio and handling transcription requests
+/// WebSocket server for streaming audio to clients
+/// Local transcription (WhisperKit) is disabled - see WhisperTranscriber.swift.disabled to re-enable
 actor AudioWebSocketServer {
     private let port: UInt16
     private var listener: NWListener?
     private var connections: [NWConnection] = []
-    private let transcriber: WhisperTranscriber
 
     init(port: Int) {
         self.port = UInt16(port)
-        self.transcriber = WhisperTranscriber()
     }
 
     /// Start the WebSocket server
@@ -155,144 +154,34 @@ actor AudioWebSocketServer {
         switch trimmed.lowercased() {
         case "ping":
             sendText("pong", to: connection)
-            return
         case "model_status":
-            await sendModelStatus(to: connection)
-            return
-        case "load_model":
-            await loadModelAndReport(to: connection)
-            return
-        default:
-            break
-        }
-
-        // Try to parse as JSON command
-        guard let jsonData = text.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-              let type = json["type"] as? String else {
-            return
-        }
-
-        switch type {
-        case "transcribe":
-            if let audioBase64 = json["audioBase64"] as? String {
-                await handleTranscribeRequest(audioBase64: audioBase64, connection: connection)
-            } else {
-                await sendError("Missing audioBase64 in transcribe request", to: connection)
-            }
-        default:
-            await sendError("Unknown command type: \(type)", to: connection)
-        }
-    }
-
-    // MARK: - Model Status
-
-    private func sendModelStatus(to connection: NWConnection) async {
-        let status = await transcriber.status
-
-        var response: [String: Any] = ["type": "model_status"]
-
-        switch status {
-        case .notLoaded:
-            response["status"] = "not_loaded"
-        case .loading(let progress):
-            response["status"] = "loading"
-            response["progress"] = progress * 100
-        case .ready:
-            response["status"] = "ready"
-        case .error(let message):
-            response["status"] = "error"
-            response["error"] = message
-        }
-
-        await sendJSON(response, to: connection)
-    }
-
-    private func loadModelAndReport(to connection: NWConnection) async {
-        // Check if already loaded
-        if await transcriber.isReady {
-            await sendModelStatus(to: connection)
-            return
-        }
-
-        do {
-            try await transcriber.loadModel { progress in
-                Task {
-                    let response: [String: Any] = [
-                        "type": "model_status",
-                        "status": "loading",
-                        "progress": progress * 100
-                    ]
-                    await self.sendJSON(response, to: connection)
-                }
-            }
-            await sendModelStatus(to: connection)
-        } catch {
+            // Local transcription is disabled
             let response: [String: Any] = [
                 "type": "model_status",
-                "status": "error",
-                "error": error.localizedDescription
+                "status": "unavailable",
+                "error": "Local transcription is disabled in this build"
             ]
             await sendJSON(response, to: connection)
-        }
-    }
-
-    // MARK: - Transcription
-
-    private func handleTranscribeRequest(audioBase64: String, connection: NWConnection) async {
-        // Decode base64 audio
-        guard let audioData = Data(base64Encoded: audioBase64) else {
-            await sendError("Invalid base64 audio data", to: connection)
-            return
-        }
-
-        // Ensure model is loaded
-        let isModelReady = await transcriber.isReady
-        if !isModelReady {
-            // Auto-load model
-            do {
-                try await transcriber.loadModel { progress in
-                    Task {
-                        let response: [String: Any] = [
-                            "type": "model_status",
-                            "status": "loading",
-                            "progress": progress * 100
-                        ]
-                        await self.sendJSON(response, to: connection)
-                    }
-                }
-            } catch {
-                await sendError("Failed to load model: \(error.localizedDescription)", to: connection)
-                return
-            }
-        }
-
-        // Perform transcription
-        do {
-            let result = try await transcriber.transcribe(audioData: audioData)
-
-            // Convert result to JSON-compatible format
-            let wordsArray = result.words.map { word -> [String: Any] in
-                return [
-                    "word": word.word,
-                    "start": word.start,
-                    "end": word.end
-                ]
-            }
-
+        case "load_model":
+            // Local transcription is disabled
             let response: [String: Any] = [
-                "type": "transcription",
-                "result": [
-                    "text": result.text,
-                    "words": wordsArray,
-                    "language": result.language,
-                    "duration": result.duration
-                ]
+                "type": "model_status",
+                "status": "unavailable",
+                "error": "Local transcription is disabled in this build"
             ]
-
             await sendJSON(response, to: connection)
-        } catch {
-            await sendError("Transcription failed: \(error.localizedDescription)", to: connection)
+        default:
+            // Try to parse as JSON command
+            if let jsonData = text.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+               let type = json["type"] as? String {
+                switch type {
+                case "transcribe":
+                    await sendError("Local transcription is disabled in this build", to: connection)
+                default:
+                    await sendError("Unknown command type: \(type)", to: connection)
+                }
+            }
         }
     }
 

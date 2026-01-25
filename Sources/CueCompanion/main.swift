@@ -28,12 +28,32 @@ class CueCompanionApp: NSObject, NSApplicationDelegate {
         // Setup menu bar
         setupMenuBar()
 
+        // Listen for system wake notifications to restart capture
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(handleSystemWake),
+            name: NSWorkspace.didWakeNotification,
+            object: nil
+        )
+
         // Start capture (will auto-detect best method)
         Task {
             await startServices()
         }
 
         print("CueCompanion started")
+    }
+
+    /// Handle system wake - restart audio capture
+    @objc private func handleSystemWake(_ notification: Notification) {
+        print("System woke from sleep, restarting audio capture...")
+        Task {
+            // Stop and restart capture to reinitialize ScreenCaptureKit
+            await stopCapture()
+            try? await Task.sleep(nanoseconds: 500_000_000) // Wait 0.5s
+            await startCapture()
+            updateMenuStatus("Running (port 9999)")
+        }
     }
 
     /// Handle URL Scheme: cuecompanion://start
@@ -170,6 +190,9 @@ class CueCompanionApp: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // Remove observer
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+
         Task {
             await stopCapture()
             await webSocketServer.stop()
