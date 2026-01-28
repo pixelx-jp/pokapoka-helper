@@ -15,9 +15,10 @@ protocol AudioCaptureProvider {
     var captureMethodName: String { get }
 
     /// Start capturing audio
+    /// - Parameter sampleRate: Sample rate in Hz (16000 or 24000), default 24000
     /// - Parameter onAudioData: Callback that receives PCM16 audio data
     /// - Parameter onCaptureStopped: Optional callback when capture is stopped externally (by system)
-    func startCapture(onAudioData: @escaping (Data) -> Void, onCaptureStopped: (() -> Void)?) async throws
+    func startCapture(sampleRate: Double, onAudioData: @escaping (Data) -> Void, onCaptureStopped: (() -> Void)?) async throws
 
     /// Stop capturing audio
     func stopCapture() async

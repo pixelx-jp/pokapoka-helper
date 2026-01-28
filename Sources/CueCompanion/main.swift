@@ -114,13 +114,22 @@ class CueCompanionApp: NSObject, NSApplicationDelegate {
 
     private func startServices() async {
         do {
-            // Start WebSocket server
+            // Set up capture control callbacks
+            await webSocketServer.setCaptureCallbacks(
+                onStart: { [weak self] sampleRate in
+                    guard let self = self else { return }
+                    await self.startCapture(sampleRate: sampleRate)
+                },
+                onStop: { [weak self] in
+                    guard let self = self else { return }
+                    await self.stopCapture()
+                }
+            )
+
+            // Start WebSocket server (audio capture will be started by client command)
             try await webSocketServer.start()
 
-            // Start audio capture (auto-detects best method)
-            await startCapture()
-
-            updateMenuStatus("Running (port 9999)")
+            updateMenuStatus("Ready (port 9999)")
         } catch {
             print("Startup error: \(error)")
             updateMenuStatus("Error: \(error.localizedDescription)")
@@ -141,9 +150,10 @@ class CueCompanionApp: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func startCapture() async {
+    private func startCapture(sampleRate: Double = 24000) async {
         do {
             try await audioCaptureManager.startCapture(
+                sampleRate: sampleRate,
                 onAudioData: { [weak self] audioData in
                     // Send audio data to all connected WebSocket clients
                     self?.webSocketServer.broadcast(audioData: audioData)
@@ -158,6 +168,7 @@ class CueCompanionApp: NSObject, NSApplicationDelegate {
             isCapturing = true
             await webSocketServer.setCapturing(true)
             updateToggleMenu(capturing: true)
+            updateMenuStatus("Running (port 9999, \(Int(sampleRate/1000))kHz)")
         } catch {
             print("Failed to start capture: \(error)")
             updateMenuStatus("Error: \(error.localizedDescription)")

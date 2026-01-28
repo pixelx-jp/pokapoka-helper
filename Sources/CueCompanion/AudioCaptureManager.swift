@@ -22,11 +22,12 @@ class AudioCaptureManager {
     }
 
     /// Start capturing system audio
+    /// - Parameter sampleRate: Sample rate in Hz (16000 or 24000), default 24000
     /// - Parameter onAudioData: Callback that receives PCM16 audio data
     /// - Parameter onCaptureStopped: Optional callback when capture is stopped externally (by system)
-    func startCapture(onAudioData: @escaping (Data) -> Void, onCaptureStopped: (() -> Void)? = nil) async throws {
+    func startCapture(sampleRate: Double = 24000, onAudioData: @escaping (Data) -> Void, onCaptureStopped: (() -> Void)? = nil) async throws {
         let capture = AudioCapture()
-        try await capture.startCapture(onAudioData: onAudioData, onCaptureStopped: onCaptureStopped)
+        try await capture.startCapture(sampleRate: sampleRate, onAudioData: onAudioData, onCaptureStopped: onCaptureStopped)
         captureProvider = capture
     }
 

@@ -1,6 +1,12 @@
 import Foundation
 import Network
 
+/// Callback for start capture request from client
+typealias StartCaptureCallback = (Double) async throws -> Void  // sampleRate
+
+/// Callback for stop capture request from client
+typealias StopCaptureCallback = () async -> Void
+
 /// WebSocket server for streaming audio to clients
 /// Local transcription (WhisperKit) is disabled - see WhisperTranscriber.swift.disabled to re-enable
 actor AudioWebSocketServer {
@@ -8,9 +14,25 @@ actor AudioWebSocketServer {
     private var listener: NWListener?
     private var connections: [NWConnection] = []
     private var _isCapturing = false
+    private var _currentSampleRate: Double = 24000
+
+    // Callbacks for capture control
+    private var onStartCapture: StartCaptureCallback?
+    private var onStopCapture: StopCaptureCallback?
 
     init(port: Int) {
         self.port = UInt16(port)
+    }
+
+    /// Set callbacks for capture control
+    func setCaptureCallbacks(onStart: @escaping StartCaptureCallback, onStop: @escaping StopCaptureCallback) {
+        self.onStartCapture = onStart
+        self.onStopCapture = onStop
+    }
+
+    /// Get current sample rate
+    var currentSampleRate: Double {
+        _currentSampleRate
     }
 
     /// Update capture status (called from main app)
@@ -169,7 +191,8 @@ actor AudioWebSocketServer {
             // Return capture status
             let response: [String: Any] = [
                 "type": "capture_status",
-                "capturing": _isCapturing
+                "capturing": _isCapturing,
+                "sampleRate": Int(_currentSampleRate)
             ]
             await sendJSON(response, to: connection)
         case "model_status":
@@ -188,12 +211,21 @@ actor AudioWebSocketServer {
                 "error": "Local transcription is disabled in this build"
             ]
             await sendJSON(response, to: connection)
+        case "stop":
+            // Stop audio capture
+            await handleStopCapture(from: connection)
         default:
             // Try to parse as JSON command
             if let jsonData = text.data(using: .utf8),
                let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
                let type = json["type"] as? String {
                 switch type {
+                case "start":
+                    // Start audio capture with optional sample rate
+                    let sampleRate = json["sampleRate"] as? Double ?? 24000
+                    await handleStartCapture(sampleRate: sampleRate, from: connection)
+                case "stop":
+                    await handleStopCapture(from: connection)
                 case "transcribe":
                     await sendError("Local transcription is disabled in this build", to: connection)
                 default:
@@ -201,6 +233,42 @@ actor AudioWebSocketServer {
                 }
             }
         }
+    }
+
+    // MARK: - Capture Control
+
+    private func handleStartCapture(sampleRate: Double, from connection: NWConnection) async {
+        guard let onStartCapture = onStartCapture else {
+            await sendError("Capture control not configured", to: connection)
+            return
+        }
+
+        do {
+            try await onStartCapture(sampleRate)
+            _currentSampleRate = sampleRate
+            let response: [String: Any] = [
+                "type": "capture_started",
+                "sampleRate": Int(sampleRate)
+            ]
+            await sendJSON(response, to: connection)
+            logToFile("Audio capture started via WebSocket (sampleRate: \(Int(sampleRate))Hz)")
+        } catch {
+            await sendError("Failed to start capture: \(error.localizedDescription)", to: connection)
+        }
+    }
+
+    private func handleStopCapture(from connection: NWConnection) async {
+        guard let onStopCapture = onStopCapture else {
+            await sendError("Capture control not configured", to: connection)
+            return
+        }
+
+        await onStopCapture()
+        let response: [String: Any] = [
+            "type": "capture_stopped"
+        ]
+        await sendJSON(response, to: connection)
+        logToFile("Audio capture stopped via WebSocket")
     }
 
     // MARK: - Send Helpers

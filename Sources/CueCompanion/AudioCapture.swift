@@ -36,17 +36,19 @@ class AudioCapture: NSObject, AudioCaptureProvider {
     private var onAudioData: AudioDataCallback?
     private var onCaptureStopped: CaptureStoppedCallback?
 
-    let sampleRate: Double = 24000  // OpenAI Realtime API expects 24kHz
+    private(set) var sampleRate: Double = 24000  // Default 24kHz, can be configured
     let channelCount: Int = 1       // Mono
     let captureMethodName = "ScreenCaptureKit"
 
     var isCapturing: Bool { _isCapturing }
 
     /// Start capturing system audio
-    func startCapture(onAudioData: @escaping AudioDataCallback, onCaptureStopped: CaptureStoppedCallback? = nil) async throws {
+    /// - Parameter sampleRate: Sample rate in Hz (16000 or 24000)
+    func startCapture(sampleRate: Double, onAudioData: @escaping AudioDataCallback, onCaptureStopped: CaptureStoppedCallback? = nil) async throws {
+        self.sampleRate = sampleRate
         self.onAudioData = onAudioData
         self.onCaptureStopped = onCaptureStopped
-        logToFile("Starting audio capture...")
+        logToFile("Starting audio capture with sample rate: \(Int(sampleRate))Hz...")
 
         // Get available content to capture
         let availableContent = try await SCShareableContent.excludingDesktopWindows(
